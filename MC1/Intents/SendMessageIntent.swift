@@ -165,6 +165,13 @@ struct SendMessageIntent: AppIntent {
       throw mapToIntentError(error)
     }
 
+    // Genuine new outgoing history from the App Intent path, which shares MC1's
+    // normal creation methods. Reports through the same app-scoped session as
+    // the UI — no second CloudSync mechanism — and cannot affect the intent's
+    // success: the call is detached and non-throwing.
+    let syncSession = appState.cloudSyncSession
+    Task { await syncSession.recordLocalMessage(pending) }
+
     do {
       switch recipient {
       case let .contact(dto):

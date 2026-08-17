@@ -43,6 +43,15 @@ public final class NotificationActionHandler {
   /// can refresh the connected device at runtime.
   private var localNodeName: (@MainActor () -> String?)?
 
+  /// Reports a *local* per-message read action to history synchronization.
+  ///
+  /// A closure rather than a concrete type so this file stays free of any
+  /// synchronization dependency. It is deliberately wired here rather than in
+  /// `PersistenceStore.markMessageAsRead`, because that method is also called
+  /// when remote history is applied locally — emitting there would feed applied
+  /// state straight back out as a local change.
+  private var onLocalMessageRead: (@Sendable (UUID) async -> Void)?
+
   public init(
     dataStore: any PersistenceStoreProtocol,
     messageService: MessageService,
@@ -61,10 +70,12 @@ public final class NotificationActionHandler {
   /// notification handling is configured.
   public func configure(
     isConnectionReady: @escaping @MainActor () -> Bool,
-    localNodeName: @escaping @MainActor () -> String?
+    localNodeName: @escaping @MainActor () -> String?,
+    onLocalMessageRead: (@Sendable (UUID) async -> Void)? = nil
   ) {
     self.isConnectionReady = isConnectionReady
     self.localNodeName = localNodeName
+    self.onLocalMessageRead = onLocalMessageRead
   }
 
   /// Whether `configure` has been called. Used to distinguish the pre-wiring
@@ -151,6 +162,9 @@ public final class NotificationActionHandler {
   public func handleMarkAsRead(contactID: UUID, messageID: UUID) async {
     do {
       try await dataStore.markMessageAsRead(id: messageID)
+      // Local user action, so it is reported. Note `clearUnreadCount` below is a
+      // conversation counter, not per-message read state, and is not reported.
+      await onLocalMessageRead?(messageID)
       try await dataStore.clearUnreadCount(contactID: contactID)
       notificationService.removeDeliveredNotification(messageID: messageID)
       await notificationService.updateBadgeCount()
@@ -163,6 +177,9 @@ public final class NotificationActionHandler {
   public func handleChannelMarkAsRead(radioID: UUID, channelIndex: UInt8, messageID: UUID) async {
     do {
       try await dataStore.markMessageAsRead(id: messageID)
+      // Local user action, so it is reported. `clearChannelUnreadCount` below is
+      // a conversation counter, not per-message read state, and is not reported.
+      await onLocalMessageRead?(messageID)
       try await dataStore.clearChannelUnreadCount(radioID: radioID, index: channelIndex)
       notificationService.removeDeliveredNotification(messageID: messageID)
       await notificationService.updateBadgeCount()

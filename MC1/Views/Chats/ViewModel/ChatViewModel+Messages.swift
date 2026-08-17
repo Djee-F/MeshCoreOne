@@ -151,6 +151,9 @@ extension ChatViewModel {
       appendMessageIfNew(message)
       schedulePrefetchForOutgoingMessage(message, isChannelMessage: false)
       syncCoordinator?.notifyConversationsChanged()
+      // Genuine new outgoing history. Best-effort and non-blocking: the enqueue
+      // and send below are unaffected by whether CloudSync succeeds.
+      reportNewOutgoingHistory(message)
     } catch {
       errorMessage = error.userFacingMessage
       return

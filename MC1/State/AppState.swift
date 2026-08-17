@@ -345,10 +345,30 @@ final class AppState {
     return connectionState == .connected && connectionUI.currentSyncPhase == .messages
   }
 
+  // MARK: - CloudSync
+
+  /// The single app-scoped CloudSync history session.
+  ///
+  /// Owned here rather than by `ServiceContainer`, which is rebuilt and torn
+  /// down on every radio connection: history synchronization has to keep working
+  /// while a radio is disconnected. Its store is built over the same app-scoped
+  /// `ModelContainer` as the rest of MC1, so there is one database and one
+  /// session — not one per radio and not a singleton.
+  ///
+  /// Its participating-radio domain is every persisted `Device` row's `radioID`
+  /// (`CloudSyncPersistedRadioProvider`), independent of `isActive` and of BLE
+  /// connection state.
+  let cloudSyncSession: CloudMessageSyncSession
+
   // MARK: - Initialization
 
   init(modelContainer: ModelContainer, isPlaceholder: Bool = false) {
     let bootstrapStore = PersistenceStore(modelContainer: modelContainer)
+    let cloudSyncStore = PersistenceStore(modelContainer: modelContainer)
+    cloudSyncSession = CloudMessageSyncSession(
+      store: cloudSyncStore,
+      radioProvider: CloudSyncPersistedRadioProvider(store: cloudSyncStore)
+    )
     let bootstrapBuffer = DebugLogBuffer(dataStore: bootstrapStore)
     bootstrapDebugLogBuffer = bootstrapBuffer
     // The inert environment-default placeholder must not publish the process-global buffer,

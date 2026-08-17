@@ -282,6 +282,25 @@ final class ChatViewModel {
     var chatSendQueueService: @MainActor () -> ChatSendQueueService?
     var inlineImageDimensionsStore: @MainActor () -> InlineImageDimensionsStore?
     var prefetchDataStore: @MainActor () -> (any PersistenceStoreProtocol)?
+    /// App-scoped CloudSync history session, owned by `AppState`. Defaulted so
+    /// existing construction sites (including test helpers) keep compiling, and
+    /// so a view model built without it simply performs no history sync.
+    var cloudSyncSession: @MainActor () -> CloudMessageSyncSession? = { nil }
+  }
+
+  /// Reports newly created outgoing history to CloudSync. Deliberately not used
+  /// by resend/retry paths (the logical message already exists) nor by reaction
+  /// sends (which persist ordinary `Message` rows that are indistinguishable at
+  /// the row level, so the call site is the only sound discriminator).
+  @ObservationIgnored private var cloudSyncSessionProvider: @MainActor () -> CloudMessageSyncSession? = { nil }
+
+  /// Hands a just-persisted outgoing message to CloudSync without blocking the
+  /// send. Detached from the caller's result: CloudSync is best-effort history
+  /// synchronization and its outcome must never alter a MeshCore send.
+  @MainActor
+  func reportNewOutgoingHistory(_ message: MessageDTO) {
+    guard let session = cloudSyncSessionProvider() else { return }
+    Task { await session.recordLocalMessage(message) }
   }
 
   @ObservationIgnored private var dataStoreProvider: @MainActor () -> DataStore? = { nil }
@@ -413,6 +432,7 @@ final class ChatViewModel {
     chatSendQueueServiceProvider = dependencies.chatSendQueueService
     bake.bindInlineImageDimensionsStore(dependencies.inlineImageDimensionsStore)
     prefetchDataStoreProvider = dependencies.prefetchDataStore
+    cloudSyncSessionProvider = dependencies.cloudSyncSession
     self.onNavigateToMap = onNavigateToMap
     lastSetRegionScope = .unknown
     if let linkPreviewCache {

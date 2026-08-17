@@ -18,9 +18,14 @@ extension AppState {
     )
 
     let handler = services.notificationActionHandler
+    let syncSession = cloudSyncSession
     handler.configure(
       isConnectionReady: { [weak self] in self?.connectionState == .ready },
-      localNodeName: { [weak self] in self?.connectedDevice?.nodeName }
+      localNodeName: { [weak self] in self?.connectedDevice?.nodeName },
+      // Local per-message read actions reach the single app-scoped session.
+      // Captured directly rather than through `self` so it stays valid for the
+      // handler's lifetime; the session is app-scoped and outlives connections.
+      onLocalMessageRead: { messageID in await syncSession.recordLocalRead(messageID: messageID) }
     )
 
     services.notificationService.onQuickReply = { contactID, text in

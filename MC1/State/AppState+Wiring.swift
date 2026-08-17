@@ -19,7 +19,14 @@ extension AppState {
           contactsVersion += 1
         case .conversationsChanged:
           refreshConversations()
-        case .directMessageReceived, .channelMessageReceived, .roomMessageReceived, .reactionReceived:
+        case .directMessageReceived, .channelMessageReceived:
+          // Post-persistence radio-ingestion events — the only incoming path
+          // into CloudSync. `CloudMessageImporter` never emits these, so a
+          // cloud-applied write cannot re-enter here and loop prevention stays
+          // structural. Handed to the app-scoped session through this existing
+          // subscription rather than starting a second one on the session.
+          await cloudSyncSession.handle(event)
+        case .roomMessageReceived, .reactionReceived:
           break
         }
       }

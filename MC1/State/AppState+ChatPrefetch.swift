@@ -33,7 +33,10 @@ extension AppState {
       reactionService: { self.services?.reactionService },
       chatSendQueueService: { self.services?.chatSendQueueService },
       inlineImageDimensionsStore: { self.services?.inlineImageDimensionsStore },
-      prefetchDataStore: { self.services?.dataStore }
+      prefetchDataStore: { self.services?.dataStore },
+      // App-scoped, not per-connection: unlike the providers above it does not
+      // read `services`, so it survives radio disconnects.
+      cloudSyncSession: { self.cloudSyncSession }
     )
   }
 
