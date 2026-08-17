@@ -146,9 +146,15 @@ public enum CloudMessageFingerprint {
   // MARK: - Channel secret validity
 
   /// Whether a channel secret carries stable cryptographic identity.
+  ///
   /// Deliberately identical to backup import's `channelHasStableSecret(_:)` so a
   /// channel that backup treats as secret-identified is fingerprinted that way too.
-  private static func hasStableSecret(_ secret: Data) -> Bool {
+  ///
+  /// Internal rather than private so ``CloudConversationIdentity/channel(secret:slotIndex:)``
+  /// shares this exact predicate. Two copies of the rule could drift, and a drift
+  /// would make a record's conversation identity and its fingerprint disagree
+  /// about the same channel.
+  static func hasStableSecret(_ secret: Data) -> Bool {
     !secret.isEmpty && !secret.allSatisfy { $0 == 0 }
   }
 }
