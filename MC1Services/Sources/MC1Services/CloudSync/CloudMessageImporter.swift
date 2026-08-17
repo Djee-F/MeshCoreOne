@@ -213,6 +213,18 @@ public struct CloudMessageImporter: Sendable {
 
   // MARK: - Record validation
 
+  /// Validates a record on its own terms, without touching the database.
+  ///
+  /// Internal so ``CloudMessageRouter`` can reject a malformed record while
+  /// *planning*, before it produces a plan that could never execute. Execution
+  /// still re-validates through ``import(_:into:)`` — planning is advisory, the
+  /// importer remains authoritative — and both run this one implementation so
+  /// the two can never disagree about what a valid record is.
+  static func validate(_ record: CloudMessageRecord) throws {
+    try validateFormat(record)
+    try validateFingerprint(record)
+  }
+
   private static func validateFormat(_ record: CloudMessageRecord) throws {
     guard record.formatVersion == CloudMessageRecord.currentFormatVersion else {
       throw CloudMessageImportError.unsupportedFormatVersion(record.formatVersion)
@@ -383,7 +395,13 @@ public struct CloudMessageImporter: Sendable {
 
   /// Recomputes a local row's cloud fingerprint under the record's conversation
   /// identity, mirroring `CloudMessageExporter` exactly.
-  private static func incomingFingerprint(
+  ///
+  /// Internal so ``CloudMessageRouter`` detects existing observations with this
+  /// exact implementation rather than a second copy. Sprint 1C must not
+  /// introduce a parallel fingerprint algorithm: a drift between the two would
+  /// make the router and the importer disagree about whether a radio already
+  /// holds a logical message.
+  static func incomingFingerprint(
     for candidate: MessageDTO,
     conversation: CloudConversationIdentity
   ) -> String {
