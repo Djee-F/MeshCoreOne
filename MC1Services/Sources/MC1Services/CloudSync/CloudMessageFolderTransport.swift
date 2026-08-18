@@ -107,6 +107,9 @@ public actor CloudMessageFolderTransport: CloudMessageRecordUploading {
   private var lastReconciled: Date?
   private var lastKnownStatus: CloudMessageTransportStatus = .notConfigured
 
+  /// The pass currently running, if any. See ``reconcile()``.
+  private var inFlightPass: Task<CloudMessageReconciliationSummary, Never>?
+
   /// Most recent reconciliation result, for status display and tests.
   public private(set) var lastSummary = CloudMessageReconciliationSummary()
 
@@ -176,6 +179,25 @@ public actor CloudMessageFolderTransport: CloudMessageRecordUploading {
   /// not remove local history; this pass only imports.
   @discardableResult
   public func reconcile() async -> CloudMessageReconciliationSummary {
+    // Being an actor is *not* enough to keep passes apart. A pass awaits the
+    // coordinator once per record, and actor reentrancy lets another pass run at
+    // exactly those suspension points — where both would observe "no local row
+    // yet" for the same record and both insert it. Serializing explicitly is
+    // what makes concurrent Sync Now, activation, and monitor-driven passes
+    // safe; each caller waits its turn and then reads the directory afresh.
+    while let existing = inFlightPass {
+      _ = await existing.value
+      if inFlightPass == existing { inFlightPass = nil }
+    }
+
+    let pass = Task { await self.performReconcile() }
+    inFlightPass = pass
+    let summary = await pass.value
+    if inFlightPass == pass { inFlightPass = nil }
+    return summary
+  }
+
+  private func performReconcile() async -> CloudMessageReconciliationSummary {
     var summary = CloudMessageReconciliationSummary()
 
     guard let folder = await folderProvider.acquireFolder() else {

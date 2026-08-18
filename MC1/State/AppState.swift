@@ -367,6 +367,12 @@ final class AppState {
   /// folder is chosen, so nothing here is conditional on configuration.
   let cloudSyncTransport: CloudMessageFolderTransport
 
+  /// Decides *when* the folder is reconciled: consumes folder-change hints,
+  /// collapses bursts, keeps passes from overlapping, and re-checks while iCloud
+  /// is still delivering contents. App-scoped so exactly one observer exists per
+  /// installation, independent of radio connections.
+  let cloudSyncScheduler: CloudMessageSyncScheduler
+
   /// Main-actor mirror of the transport's state, for the settings screen.
   /// Refreshed explicitly — the transport is an actor and publishes nothing.
   var cloudSyncStatus: CloudMessageTransportStatus = .notConfigured
@@ -386,11 +392,13 @@ final class AppState {
       store: cloudSyncStore,
       radioProvider: cloudSyncRadios
     )
-    cloudSyncTransport = CloudMessageFolderTransport(
+    let cloudSyncFolderTransport = CloudMessageFolderTransport(
       folderProvider: cloudSyncFolders,
       coordinator: CloudMessageSyncCoordinator(store: cloudSyncStore),
       radioProvider: cloudSyncRadios
     )
+    cloudSyncTransport = cloudSyncFolderTransport
+    cloudSyncScheduler = CloudMessageSyncScheduler(transport: cloudSyncFolderTransport)
     let bootstrapBuffer = DebugLogBuffer(dataStore: bootstrapStore)
     bootstrapDebugLogBuffer = bootstrapBuffer
     // The inert environment-default placeholder must not publish the process-global buffer,

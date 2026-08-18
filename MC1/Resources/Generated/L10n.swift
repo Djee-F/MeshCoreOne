@@ -4682,6 +4682,8 @@ public enum L10n {
       public static let header = L10n.tr("Settings", "directMessages.header", fallback: "Direct Messages")
     }
     public enum HistorySync {
+      /// Footer note describing when automatic checking happens. Deliberately does not promise background syncing, which iOS does not guarantee for a user-selected folder.
+      public static let automaticNote = L10n.tr("Settings", "historySync.automaticNote", fallback: "Automatically checks for changes while the app is active.")
       /// Button to replace the folder currently in use
       public static let change = L10n.tr("Settings", "historySync.change", fallback: "Change Folder…")
       /// Row shown while the folder is being checked
@@ -4711,6 +4713,8 @@ public enum L10n {
         public static let notConfigured = L10n.tr("Settings", "historySync.status.notConfigured", fallback: "Not set up")
         /// Status row shown when the chosen folder cannot be reached
         public static let unavailable = L10n.tr("Settings", "historySync.status.unavailable", fallback: "Folder unavailable")
+        /// Status row shown while iCloud is still delivering file contents
+        public static let waitingForICloud = L10n.tr("Settings", "historySync.status.waitingForICloud", fallback: "Waiting for iCloud…")
       }
       public enum StopConfirm {
         /// Confirmation button that stops syncing on this device

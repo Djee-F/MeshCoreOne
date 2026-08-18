@@ -1777,3 +1777,9 @@
 
 /* Error shown when the chosen folder could not be saved */
 "historySync.chooseFailed" = "That folder couldn’t be used. Try choosing it again.";
+
+/* Status row shown while iCloud is still delivering file contents */
+"historySync.status.waitingForICloud" = "Waiting for iCloud…";
+
+/* Footer note describing when automatic checking happens. Deliberately does not promise background syncing, which iOS does not guarantee for a user-selected folder. */
+"historySync.automaticNote" = "Automatically checks for changes while the app is active.";

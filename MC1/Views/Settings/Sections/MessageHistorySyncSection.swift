@@ -65,7 +65,12 @@ struct MessageHistorySyncSection: View {
     } header: {
       Text(L10n.Settings.HistorySync.header)
     } footer: {
-      Text(L10n.Settings.HistorySync.footer)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(L10n.Settings.HistorySync.footer)
+        if isConfigured {
+          Text(L10n.Settings.HistorySync.automaticNote)
+        }
+      }
     }
     .themedRowBackground(theme)
     .fileImporter(
@@ -120,9 +125,16 @@ struct MessageHistorySyncSection: View {
     case .unavailable:
       L10n.Settings.HistorySync.Status.unavailable
     case .ready:
-      L10n.Settings.HistorySync.Status.active(
-        appState.cloudSyncFolderName ?? L10n.Settings.HistorySync.Status.notConfigured
-      )
+      // Documents are present but iCloud has not delivered their contents yet.
+      // Naming that beats showing a healthy "Using …" beside history that has
+      // visibly not arrived.
+      if (appState.cloudSyncLastSummary?.pendingDownloads ?? 0) > 0 {
+        L10n.Settings.HistorySync.Status.waitingForICloud
+      } else {
+        L10n.Settings.HistorySync.Status.active(
+          appState.cloudSyncFolderName ?? L10n.Settings.HistorySync.Status.notConfigured
+        )
+      }
     }
   }
 
