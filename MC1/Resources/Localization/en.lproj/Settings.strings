@@ -1727,3 +1727,53 @@
 "Appearance.Accessibility.ThemeCard.SelectedLabel" = "Theme %@, currently selected";
 "Appearance.Accessibility.Swatch.DualMode" = "%@, light and dark variants";
 "Appearance.Accessibility.Swatch.DarkOnly" = "%@, dark only";
+
+// MARK: - Message History Sync
+
+/* Section header for folder-based message history synchronization */
+"historySync.header" = "Message History Sync";
+
+/* Footer explaining how folder-based message history sync works */
+"historySync.footer" = "Choose a folder in iCloud Drive to share message history between your Apple devices, then pick the same folder on each device. Messages already on this device stay here.";
+
+/* Status row shown when no folder has been chosen */
+"historySync.status.notConfigured" = "Not set up";
+
+/* Status row naming the folder currently in use */
+"historySync.status.active" = "Using “%@”";
+
+/* Status row shown when the chosen folder cannot be reached */
+"historySync.status.unavailable" = "Folder unavailable";
+
+/* Explanation shown when the chosen folder cannot be reached */
+"historySync.unavailableDetail" = "The folder can’t be reached right now. It may still be downloading, or it may have been moved or removed.";
+
+/* Button to choose a sync folder for the first time */
+"historySync.choose" = "Choose Folder…";
+
+/* Button to replace the folder currently in use */
+"historySync.change" = "Change Folder…";
+
+/* Button to check the folder for new messages immediately */
+"historySync.syncNow" = "Sync Now";
+
+/* Row shown while the folder is being checked */
+"historySync.checking" = "Checking…";
+
+/* Button to stop using the sync folder on this device */
+"historySync.stop" = "Stop Syncing";
+
+/* Title of the confirmation asking whether to stop syncing */
+"historySync.stopConfirm.title" = "Stop syncing message history?";
+
+/* Confirmation button that stops syncing on this device */
+"historySync.stopConfirm.confirm" = "Stop Syncing";
+
+/* Explanation that stopping affects this device only and deletes nothing */
+"historySync.stopConfirm.message" = "This device will stop reading and writing the folder. Nothing in the folder is deleted, and the messages already on this device are kept.";
+
+/* Row shown when some items in the folder could not be read */
+"historySync.someSkipped" = "Some items in the folder couldn’t be read and were skipped.";
+
+/* Error shown when the chosen folder could not be saved */
+"historySync.chooseFailed" = "That folder couldn’t be used. Try choosing it again.";

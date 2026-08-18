@@ -70,6 +70,10 @@ extension AppState {
     // Update badge count from database
     await services?.notificationService.updateBadgeCount()
 
+    // Pull message history other devices wrote while this one was away. Detached
+    // so a slow or unreachable folder cannot delay the connection work below.
+    Task { await reconcileCloudSyncFolder() }
+
     // Room keepalives are managed by RoomConversationView lifecycle
     // (started on view appear, stopped on disappear, restarted via scenePhase)
 

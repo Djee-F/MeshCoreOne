@@ -4681,6 +4681,46 @@ public enum L10n {
       /// Section header for direct message settings
       public static let header = L10n.tr("Settings", "directMessages.header", fallback: "Direct Messages")
     }
+    public enum HistorySync {
+      /// Button to replace the folder currently in use
+      public static let change = L10n.tr("Settings", "historySync.change", fallback: "Change Folder…")
+      /// Row shown while the folder is being checked
+      public static let checking = L10n.tr("Settings", "historySync.checking", fallback: "Checking…")
+      /// Button to choose a sync folder for the first time
+      public static let choose = L10n.tr("Settings", "historySync.choose", fallback: "Choose Folder…")
+      /// Error shown when the chosen folder could not be saved
+      public static let chooseFailed = L10n.tr("Settings", "historySync.chooseFailed", fallback: "That folder couldn’t be used. Try choosing it again.")
+      /// Footer explaining how folder-based message history sync works
+      public static let footer = L10n.tr("Settings", "historySync.footer", fallback: "Choose a folder in iCloud Drive to share message history between your Apple devices, then pick the same folder on each device. Messages already on this device stay here.")
+      /// Section header for folder-based message history synchronization
+      public static let header = L10n.tr("Settings", "historySync.header", fallback: "Message History Sync")
+      /// Row shown when some items in the folder could not be read
+      public static let someSkipped = L10n.tr("Settings", "historySync.someSkipped", fallback: "Some items in the folder couldn’t be read and were skipped.")
+      /// Button to stop using the sync folder on this device
+      public static let stop = L10n.tr("Settings", "historySync.stop", fallback: "Stop Syncing")
+      /// Button to check the folder for new messages immediately
+      public static let syncNow = L10n.tr("Settings", "historySync.syncNow", fallback: "Sync Now")
+      /// Explanation shown when the chosen folder cannot be reached
+      public static let unavailableDetail = L10n.tr("Settings", "historySync.unavailableDetail", fallback: "The folder can’t be reached right now. It may still be downloading, or it may have been moved or removed.")
+      public enum Status {
+        /// Status row naming the folder currently in use
+        public static func active(_ p1: Any) -> String {
+          return L10n.tr("Settings", "historySync.status.active", String(describing: p1), fallback: "Using “%@”")
+        }
+        /// Status row shown when no folder has been chosen
+        public static let notConfigured = L10n.tr("Settings", "historySync.status.notConfigured", fallback: "Not set up")
+        /// Status row shown when the chosen folder cannot be reached
+        public static let unavailable = L10n.tr("Settings", "historySync.status.unavailable", fallback: "Folder unavailable")
+      }
+      public enum StopConfirm {
+        /// Confirmation button that stops syncing on this device
+        public static let confirm = L10n.tr("Settings", "historySync.stopConfirm.confirm", fallback: "Stop Syncing")
+        /// Explanation that stopping affects this device only and deletes nothing
+        public static let message = L10n.tr("Settings", "historySync.stopConfirm.message", fallback: "This device will stop reading and writing the folder. Nothing in the folder is deleted, and the messages already on this device are kept.")
+        /// Title of the confirmation asking whether to stop syncing
+        public static let title = L10n.tr("Settings", "historySync.stopConfirm.title", fallback: "Stop syncing message history?")
+      }
+    }
     public enum ImportKey {
       /// Button to import the key
       public static let `import` = L10n.tr("Settings", "importKey.import", fallback: "Import Key")

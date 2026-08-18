@@ -18,6 +18,9 @@ public enum CloudMessageFileTransportError: Error, Equatable, Sendable {
   /// A record already exists under this fingerprint with different immutable
   /// content. The existing file is left untouched.
   case immutableContentConflict(fingerprint: String)
+  /// The document is in iCloud but its contents have not reached this device
+  /// yet. A download has been requested; a later pass will find it.
+  case contentNotDownloaded
   /// The underlying filesystem operation failed. Deliberately opaque — a raw
   /// `NSError` description can embed the full path.
   case ioFailure
@@ -41,9 +44,18 @@ public struct CloudMessageFileLoadResult: Sendable, Equatable {
   public let records: [CloudMessageRecord]
   public let failures: [CloudMessageFileLoadFailure]
 
-  public init(records: [CloudMessageRecord], failures: [CloudMessageFileLoadFailure]) {
+  /// Documents present in the folder whose contents have not downloaded yet. A
+  /// download was requested for each; they are not failures.
+  public let pendingDownloads: Int
+
+  public init(
+    records: [CloudMessageRecord],
+    failures: [CloudMessageFileLoadFailure],
+    pendingDownloads: Int = 0
+  ) {
     self.records = records
     self.failures = failures
+    self.pendingDownloads = pendingDownloads
   }
 }
 
@@ -171,6 +183,37 @@ public struct CloudMessageDirectoryStore: Sendable {
     return record
   }
 
+  // MARK: iCloud materialization
+
+  /// Whether the document's bytes are on this device, requesting a download when
+  /// they are not.
+  ///
+  /// A document in iCloud Drive is listed by `contentsOfDirectory` under its real
+  /// name long before its contents arrive. Reading one of those placeholders
+  /// fails, and nothing else in the system fetches it on our behalf — so without
+  /// this an untouched folder would look permanently empty on a fresh device,
+  /// which is exactly the case this transport exists to serve.
+  ///
+  /// `startDownloadingUbiquitousItem` needs no iCloud entitlement, container, or
+  /// account of our own: it acts on a URL the user already granted us.
+  ///
+  /// A file outside a ubiquity container reports no downloading status, so
+  /// ordinary local folders — including the temporary directories tests use —
+  /// are always treated as present.
+  static func isReadable(_ url: URL) -> Bool {
+    let status = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+      .ubiquitousItemDownloadingStatus
+    guard let status else { return true }
+    guard status != .current else { return true }
+
+    // Not current: ask for the newer contents either way. `.notDownloaded` has
+    // nothing to read yet; `.downloaded` means a readable but stale copy is
+    // present, which is still worth importing now — a record is immutable apart
+    // from read state, so a stale copy is never wrong, only behind.
+    try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+    return status != .notDownloaded
+  }
+
   // MARK: Reading
 
   /// The record stored under a fingerprint, or `nil` when absent.
@@ -180,6 +223,9 @@ public struct CloudMessageDirectoryStore: Sendable {
     }
     let url = messagesDirectory.appendingPathComponent(name, isDirectory: false)
     guard fileManager.fileExists(atPath: url.path) else { return nil }
+    guard Self.isReadable(url) else {
+      throw CloudMessageFileTransportError.contentNotDownloaded
+    }
     let data: Data
     do {
       data = try Data(contentsOf: url)
@@ -202,6 +248,7 @@ public struct CloudMessageDirectoryStore: Sendable {
 
     var records: [CloudMessageRecord] = []
     var failures: [CloudMessageFileLoadFailure] = []
+    var pendingDownloads = 0
 
     // Deterministic order so a scan is reproducible.
     for name in names.sorted() {
@@ -212,6 +259,13 @@ public struct CloudMessageDirectoryStore: Sendable {
       guard Self.isValidFingerprintFileStem(stem) else { continue }
 
       let fileURL = directory.appendingPathComponent(name, isDirectory: false)
+      guard Self.isReadable(fileURL) else {
+        // Not a failure: the contents are on their way and the next pass reads
+        // them. Counting it as an error would make an ordinary first sync on a
+        // new device look broken.
+        pendingDownloads += 1
+        continue
+      }
       do {
         let data = try Data(contentsOf: fileURL)
         records.append(try Self.decode(data, expectedFingerprint: stem))
@@ -221,7 +275,9 @@ public struct CloudMessageDirectoryStore: Sendable {
         failures.append(CloudMessageFileLoadFailure(fileName: name, reason: .ioFailure))
       }
     }
-    return CloudMessageFileLoadResult(records: records, failures: failures)
+    return CloudMessageFileLoadResult(
+      records: records, failures: failures, pendingDownloads: pendingDownloads
+    )
   }
 
   // MARK: Writing
@@ -287,19 +343,36 @@ public struct CloudMessageDirectoryStore: Sendable {
 
   // MARK: Merge helpers
 
-  /// Everything except `isRead` — the immutable identity of the logical message.
+  /// The immutable identity of the logical message, for collision detection.
+  ///
+  /// `isRead` is mutable everywhere. For **outgoing** records `wireTimestamp` is
+  /// also not identity: `resendDirectMessage(preserveTimestamp: false)` re-stamps
+  /// `Message.timestamp` through `updateMessageTimestamp` while the fingerprint —
+  /// the origin `Message.id` — is unchanged. Comparing it would make an ordinary
+  /// resend look like a fingerprint collision. Incoming records keep the strict
+  /// comparison, because their timestamp is hashed into the fingerprint and any
+  /// difference really would be a forged or corrupted document.
+  ///
+  /// The stored record deliberately keeps the *first* wire timestamp written: it
+  /// records when the message was originally sent, and a later local re-stamp is
+  /// send-machinery state the portable format excludes everywhere else.
   static func immutableContent(_ record: CloudMessageRecord) -> CloudMessageRecord {
-    withRead(record, isRead: false)
+    let identityTimestamp: UInt32 = record.direction == .outgoing ? 0 : record.wireTimestamp
+    return withRead(record, isRead: false, wireTimestamp: identityTimestamp)
   }
 
-  static func withRead(_ record: CloudMessageRecord, isRead: Bool = true) -> CloudMessageRecord {
+  static func withRead(
+    _ record: CloudMessageRecord,
+    isRead: Bool = true,
+    wireTimestamp: UInt32? = nil
+  ) -> CloudMessageRecord {
     CloudMessageRecord(
       formatVersion: record.formatVersion,
       fingerprint: record.fingerprint,
       conversation: record.conversation,
       direction: record.direction,
       text: record.text,
-      wireTimestamp: record.wireTimestamp,
+      wireTimestamp: wireTimestamp ?? record.wireTimestamp,
       senderNodeName: record.senderNodeName,
       isRead: isRead,
       originMessageID: record.originMessageID

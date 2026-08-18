@@ -19,6 +19,7 @@ struct ChatSettingsView: View {
       LinkPreviewSettingsSection()
       MapPreviewSettingsSection()
       MessagesSettingsSection()
+      MessageHistorySyncSection()
       BlockingSection()
     }
     .themedCanvas(theme)

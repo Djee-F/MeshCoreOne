@@ -71,6 +71,23 @@ public struct CloudSyncPersistedRadioProvider: CloudSyncRadioProviding {
   }
 }
 
+// MARK: - Upload sink
+
+/// Where a session sends the records it produces.
+///
+/// One method, taking the portable record the export layer already built. Kept
+/// as a protocol so `MC1Services` never learns what the destination *is* — a
+/// folder today, something else later — and so the session stays testable with
+/// no file system involved.
+public protocol CloudMessageRecordUploading: Sendable {
+  /// Publishes one record. Returns whether it reached the destination.
+  ///
+  /// Must not throw: the caller is a best-effort path running behind a completed
+  /// local write.
+  @discardableResult
+  func upload(_ record: CloudMessageRecord) async -> Bool
+}
+
 // MARK: - Session
 
 /// Owns the lifetime of local-history synchronization: one long-lived object
@@ -111,6 +128,10 @@ public actor CloudMessageSyncSession {
 
   private var eventTask: Task<Void, Never>?
 
+  /// Optional destination for records this session produces. Nil means purely
+  /// local reconciliation, which is exactly the pre-transport behaviour.
+  private var uploader: (any CloudMessageRecordUploading)?
+
   /// Triggers that completed without throwing. Diagnostics only.
   public private(set) var processedTriggerCount: Int = 0
 
@@ -125,6 +146,20 @@ public actor CloudMessageSyncSession {
   public init(store: any CloudSyncMessageStore, radioProvider: any CloudSyncRadioProviding) {
     driver = CloudMessageSyncDriver(store: store)
     self.radioProvider = radioProvider
+  }
+
+  /// Attaches (or detaches, with `nil`) the remote destination.
+  ///
+  /// Deliberately a setter rather than an `init` parameter: the session is built
+  /// during `AppState.init`, while the transport depends on a folder the user may
+  /// choose, revoke, or re-choose at any later point. Passing `nil` returns the
+  /// session to local-only reconciliation immediately.
+  ///
+  /// Every trigger this session *already* handles is uploaded through the sink,
+  /// so connecting a destination adds no new call sites anywhere in the app and
+  /// cannot change which events are considered local-origin.
+  public func setUploader(_ uploader: (any CloudMessageRecordUploading)?) {
+    self.uploader = uploader
   }
 
   // MARK: Subscription lifetime
@@ -213,11 +248,15 @@ public actor CloudMessageSyncSession {
     }
 
     do {
-      if try await driver.handle(trigger, across: radioIDs) == nil {
+      guard let outcome = try await driver.handle(trigger, across: radioIDs) else {
         skippedTriggerCount += 1
-      } else {
-        processedTriggerCount += 1
+        return
       }
+      processedTriggerCount += 1
+      // Local reconciliation has already happened and is not conditional on the
+      // upload: a destination that is absent, unreachable, or failing must never
+      // cost the user local history.
+      await uploader?.upload(outcome.record)
     } catch {
       // Deliberately swallowed and un-logged: the error can carry no payload
       // worth surfacing here, and CloudSync failure is non-fatal to MC1 by

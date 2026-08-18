@@ -360,14 +360,36 @@ final class AppState {
   /// connection state.
   let cloudSyncSession: CloudMessageSyncSession
 
+  /// Device-local record of the folder the user chose for history sync.
+  let cloudSyncFolderStore: CloudSyncFolderBookmarkStore
+
+  /// The remote leg of history synchronization. Always present; inert until a
+  /// folder is chosen, so nothing here is conditional on configuration.
+  let cloudSyncTransport: CloudMessageFolderTransport
+
+  /// Main-actor mirror of the transport's state, for the settings screen.
+  /// Refreshed explicitly — the transport is an actor and publishes nothing.
+  var cloudSyncStatus: CloudMessageTransportStatus = .notConfigured
+  var cloudSyncFolderName: String?
+  var cloudSyncLastSummary: CloudMessageReconciliationSummary?
+  var isCloudSyncReconciling = false
+
   // MARK: - Initialization
 
   init(modelContainer: ModelContainer, isPlaceholder: Bool = false) {
     let bootstrapStore = PersistenceStore(modelContainer: modelContainer)
     let cloudSyncStore = PersistenceStore(modelContainer: modelContainer)
+    let cloudSyncRadios = CloudSyncPersistedRadioProvider(store: cloudSyncStore)
+    let cloudSyncFolders = CloudSyncFolderBookmarkStore()
+    cloudSyncFolderStore = cloudSyncFolders
     cloudSyncSession = CloudMessageSyncSession(
       store: cloudSyncStore,
-      radioProvider: CloudSyncPersistedRadioProvider(store: cloudSyncStore)
+      radioProvider: cloudSyncRadios
+    )
+    cloudSyncTransport = CloudMessageFolderTransport(
+      folderProvider: cloudSyncFolders,
+      coordinator: CloudMessageSyncCoordinator(store: cloudSyncStore),
+      radioProvider: cloudSyncRadios
     )
     let bootstrapBuffer = DebugLogBuffer(dataStore: bootstrapStore)
     bootstrapDebugLogBuffer = bootstrapBuffer
@@ -480,6 +502,10 @@ final class AppState {
       isOnboarded: onboarding.hasCompletedOnboarding,
       isScreenshotMode: isScreenshotMode
     )
+
+    // Attach the history-sync folder and pull anything waiting in it. Detached
+    // so an unreachable folder can never delay the connection path below.
+    Task { await startCloudSyncTransport() }
 
     // Recover any existing Live Activity before activate() so that onConnectionReady
     // (which fires during activate) finds currentActivity populated and can update it.
